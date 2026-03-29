@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../config/constants.dart';
+import '../config/theme.dart';
 import '../models/seance.dart';
 import '../providers/auth_provider.dart';
 import '../providers/presence_provider.dart';
@@ -10,10 +11,7 @@ import '../widgets/loading_overlay.dart';
 import '../widgets/app_error_widget.dart';
 import 'stats_screen.dart';
 
-/// Attendance screen — core screen of the app.
-///
-/// Displays all students in the session's filière, allows the professor
-/// to set each student's statut and optional comment, then submit.
+/// Attendance screen — polished redesign matching ESTC 2025 style.
 class AttendanceScreen extends StatefulWidget {
   final Seance seance;
 
@@ -27,7 +25,6 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   @override
   void initState() {
     super.initState();
-    // Load students + existing presence records after first frame
     WidgetsBinding.instance.addPostFrameCallback((_) => _load());
   }
 
@@ -48,16 +45,28 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(
-          success
-              ? 'Présences enregistrées avec succès ✓'
-              : context.read<PresenceProvider>().error ?? 'Erreur de sauvegarde',
+        content: Row(
+          children: [
+            Icon(
+              success ? Icons.check_circle : Icons.error,
+              color: Colors.white,
+              size: 18,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              success
+                  ? 'Présences enregistrées avec succès'
+                  : context.read<PresenceProvider>().error ??
+                      'Erreur de sauvegarde',
+            ),
+          ],
         ),
         backgroundColor: success
-            ? Colors.green.shade700
+            ? AppColors.present
             : Theme.of(context).colorScheme.error,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        margin: const EdgeInsets.all(16),
       ),
     );
   }
@@ -66,52 +75,66 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
     final provider = context.watch<PresenceProvider>();
     final seance = widget.seance;
 
     return Scaffold(
+      backgroundColor: isDark ? null : const Color(0xFFF8FAFC),
       appBar: AppBar(
-        title: Text(seance.nomModule ?? 'Appel'),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(seance.nomModule ?? 'Appel',
+                style: const TextStyle(
+                    fontWeight: FontWeight.bold, fontSize: 17)),
+            Text(
+              seance.nomFiliere ?? '',
+              style: TextStyle(
+                  fontSize: 11,
+                  color: cs.onSurface.withValues(alpha: 0.5),
+                  fontWeight: FontWeight.normal),
+            ),
+          ],
+        ),
         actions: [
-          // Statistics button
-          IconButton(
-            icon: const Icon(Icons.bar_chart_rounded),
-            tooltip: 'Statistiques',
-            onPressed: provider.students.isEmpty
-                ? null
-                : () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => StatsScreen(seance: seance),
-                      ),
-                    ),
-          ),
+          if (provider.students.isNotEmpty)
+            IconButton(
+              icon: const Icon(Icons.bar_chart_rounded),
+              tooltip: 'Statistiques',
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => StatsScreen(seance: seance)),
+              ),
+            ),
         ],
       ),
       body: Column(
         children: [
-          // ── Session info banner ──────────────────────────────────────────
-          _SessionInfoBanner(seance: seance),
+          // ── Session info banner ───────────────────────────────────────
+          _InfoBanner(seance: seance, isDark: isDark),
 
-          // ── Status summary bar ───────────────────────────────────────────
+          // ── Status summary ────────────────────────────────────────────
           if (!provider.isLoading && provider.students.isNotEmpty)
-            _StatutSummaryBar(provider: provider),
+            _SummaryBar(provider: provider, isDark: isDark),
 
-          // ── Student list ─────────────────────────────────────────────────
+          // ── Student list ──────────────────────────────────────────────
           Expanded(child: _buildBody(provider, cs, theme)),
         ],
       ),
-
-      // ── Submit FAB ────────────────────────────────────────────────────────
       floatingActionButton: provider.students.isEmpty || provider.isLoading
           ? null
           : FloatingActionButton.extended(
               onPressed: provider.isSaving ? null : _submit,
+              backgroundColor: AppColors.seed,
+              foregroundColor: Colors.white,
               icon: provider.isSaving
                   ? const SizedBox(
                       width: 18,
                       height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white),
                     )
                   : Icon(provider.submitted ? Icons.edit : Icons.save),
               label: Text(
@@ -119,13 +142,14 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                     ? 'Enregistrement...'
                     : provider.submitted
                         ? 'Mettre à jour'
-                        : 'Enregistrer l\'appel',
+                        : "Enregistrer l'appel",
               ),
             ),
     );
   }
 
-  Widget _buildBody(PresenceProvider provider, ColorScheme cs, ThemeData theme) {
+  Widget _buildBody(
+      PresenceProvider provider, ColorScheme cs, ThemeData theme) {
     if (provider.isLoading) {
       return const LoadingOverlay(message: 'Chargement des étudiants...');
     }
@@ -137,17 +161,20 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.people_outline, size: 72, color: cs.onSurfaceVariant.withValues(alpha: 0.4)),
+            Icon(Icons.people_outline,
+                size: 64,
+                color: cs.onSurfaceVariant.withValues(alpha: 0.3)),
             const SizedBox(height: 12),
             Text('Aucun étudiant dans cette filière',
-                style: TextStyle(color: cs.onSurfaceVariant)),
+                style: TextStyle(
+                    color: cs.onSurfaceVariant.withValues(alpha: 0.7))),
           ],
         ),
       );
     }
 
     return ListView.builder(
-      padding: const EdgeInsets.only(bottom: 96), // space for FAB
+      padding: const EdgeInsets.only(bottom: 96),
       itemCount: provider.students.length,
       itemBuilder: (ctx, i) {
         final student = provider.students[i];
@@ -167,29 +194,31 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   }
 }
 
-// ─── Session Info Banner ──────────────────────────────────────────────────────
+// ─── Info Banner ──────────────────────────────────────────────────────────────
 
-class _SessionInfoBanner extends StatelessWidget {
+class _InfoBanner extends StatelessWidget {
   final Seance seance;
-  const _SessionInfoBanner({required this.seance});
+  final bool isDark;
+
+  const _InfoBanner({required this.seance, required this.isDark});
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     return Container(
-      color: cs.surfaceContainerHighest,
+      color: isDark ? const Color(0xFF1E293B) : Colors.white,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
         children: [
-          Icon(Icons.info_outline, color: cs.onSurfaceVariant, size: 18),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              '${seance.nomFiliere ?? 'Filière'} • '
-              '${DateFormat('dd/MM/yyyy').format(seance.dateSeance)} • '
-              '${seance.heureDebut}–${seance.heureFin}',
-              style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12),
-            ),
+          _Chip(
+            icon: Icons.calendar_today,
+            label:
+                DateFormat('dd/MM/yyyy').format(seance.dateSeance),
+          ),
+          const SizedBox(width: 12),
+          _Chip(
+            icon: Icons.schedule,
+            label:
+                '${seance.heureDebut.substring(0, 5)}–${seance.heureFin.substring(0, 5)}',
           ),
         ],
       ),
@@ -197,77 +226,109 @@ class _SessionInfoBanner extends StatelessWidget {
   }
 }
 
-// ─── Statut Summary Bar ───────────────────────────────────────────────────────
+class _Chip extends StatelessWidget {
+  final IconData icon;
+  final String label;
 
-/// Shows how many students are in each statut.
-class _StatutSummaryBar extends StatelessWidget {
+  const _Chip({required this.icon, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: AppColors.seed.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: AppColors.seed),
+          const SizedBox(width: 5),
+          Text(label,
+              style: const TextStyle(
+                  fontSize: 12,
+                  color: AppColors.seed,
+                  fontWeight: FontWeight.w500)),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Summary Bar ─────────────────────────────────────────────────────────────
+
+class _SummaryBar extends StatelessWidget {
   final PresenceProvider provider;
-  const _StatutSummaryBar({required this.provider});
+  final bool isDark;
+
+  const _SummaryBar({required this.provider, required this.isDark});
 
   @override
   Widget build(BuildContext context) {
     final total = provider.students.length;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      color: isDark ? const Color(0xFF1E293B) : Colors.white,
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          _SummaryChip(
-            label: 'Présents',
-            count: provider.countByStatut(Statut.present),
-            total: total,
-            color: Colors.green,
-          ),
-          _SummaryChip(
-            label: 'Absents',
-            count: provider.countByStatut(Statut.absent),
-            total: total,
-            color: Colors.red,
-          ),
-          _SummaryChip(
-            label: 'Retards',
-            count: provider.countByStatut(Statut.retard),
-            total: total,
-            color: Colors.orange,
-          ),
-          _SummaryChip(
-            label: 'Justifiés',
-            count: provider.countByStatut(Statut.justifie),
-            total: total,
-            color: Colors.blue,
-          ),
+          _SummaryDot(
+              color: AppColors.present,
+              count: provider.countByStatut(Statut.present),
+              label: 'Présents',
+              total: total),
+          const SizedBox(width: 16),
+          _SummaryDot(
+              color: AppColors.absent,
+              count: provider.countByStatut(Statut.absent),
+              label: 'Absents',
+              total: total),
+          const SizedBox(width: 16),
+          _SummaryDot(
+              color: AppColors.retard,
+              count: provider.countByStatut(Statut.retard),
+              label: 'Retards',
+              total: total),
+          const SizedBox(width: 16),
+          _SummaryDot(
+              color: AppColors.justifie,
+              count: provider.countByStatut(Statut.justifie),
+              label: 'Justifiés',
+              total: total),
         ],
       ),
     );
   }
 }
 
-class _SummaryChip extends StatelessWidget {
-  final String label;
-  final int count;
-  final int total;
+class _SummaryDot extends StatelessWidget {
   final Color color;
+  final int count;
+  final String label;
+  final int total;
 
-  const _SummaryChip(
-      {required this.label,
+  const _SummaryDot(
+      {required this.color,
       required this.count,
-      required this.total,
-      required this.color});
+      required this.label,
+      required this.total});
 
   @override
   Widget build(BuildContext context) {
-    return Column(
+    return Row(
       children: [
-        Text(
-          '$count/$total',
-          style: TextStyle(
-              color: color, fontWeight: FontWeight.bold, fontSize: 16),
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
         ),
-        Text(label,
-            style: TextStyle(
-                fontSize: 10,
-                color: Colors.grey.shade600,
-                fontWeight: FontWeight.w500)),
+        const SizedBox(width: 5),
+        Text(
+          '$count $label',
+          style: TextStyle(
+              fontSize: 12,
+              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6)),
+        ),
       ],
     );
   }

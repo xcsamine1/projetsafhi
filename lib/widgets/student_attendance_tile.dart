@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
 import '../config/constants.dart';
+import '../config/theme.dart';
 import '../models/etudiant.dart';
 
-/// A list tile showing a student's name, status icon, a statut dropdown,
-/// and an optional comment field that expands when a non-present statut is chosen.
-///
-/// Used in [AttendanceScreen].
+/// Student attendance tile — redesigned to match ESTC 2025 style.
 class StudentAttendanceTile extends StatefulWidget {
   final Etudiant student;
   final Statut currentStatut;
@@ -60,7 +58,6 @@ class _StudentAttendanceTileState extends State<StudentAttendanceTile>
       setState(() => _showComment = shouldShow);
       shouldShow ? _animController.forward() : _animController.reverse();
     }
-    // Sync external comment changes
     if (widget.currentComment != null &&
         widget.currentComment != _commentController.text) {
       _commentController.text = widget.currentComment!;
@@ -74,132 +71,223 @@ class _StudentAttendanceTileState extends State<StudentAttendanceTile>
     super.dispose();
   }
 
-  /// Returns icon + color for a given statut.
-  (IconData, Color) _statutStyle(Statut s) {
-    switch (s) {
-      case Statut.present:
-        return (Icons.check_circle, Colors.green);
-      case Statut.absent:
-        return (Icons.cancel, Colors.red);
-      case Statut.retard:
-        return (Icons.watch_later, Colors.orange);
-      case Statut.justifie:
-        return (Icons.info, Colors.blue);
-    }
+  Color _avatarColor(String name) {
+    final colors = [
+      const Color(0xFF6C63FF),
+      const Color(0xFF3B82F6),
+      const Color(0xFF10B981),
+      const Color(0xFFF59E0B),
+      const Color(0xFFEF4444),
+      const Color(0xFF8B5CF6),
+      const Color(0xFF14B8A6),
+      const Color(0xFFF97316),
+    ];
+    return colors[name.codeUnitAt(0) % colors.length];
   }
+
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
-    final (icon, iconColor) = _statutStyle(widget.currentStatut);
+    final isDark = theme.brightness == Brightness.dark;
+    final avatarColor = _avatarColor(widget.student.nom);
+    final initials =
+        '${widget.student.prenom[0]}${widget.student.nom[0]}'.toUpperCase();
 
-    return Card(
+    return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // ── Main row ─────────────────────────────────────────────────
-            Row(
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E293B) : Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.07)
+              : const Color(0xFFE2E8F0),
+        ),
+      ),
+      child: Column(
+        children: [
+          // ── Main row ─────────────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Initialed avatar
-                CircleAvatar(
-                  backgroundColor: cs.secondaryContainer,
-                  radius: 22,
-                  child: Text(
-                    widget.student.prenom[0].toUpperCase(),
-                    style: TextStyle(
-                        color: cs.onSecondaryContainer,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16),
-                  ),
-                ),
-                const SizedBox(width: 12),
-
-                // Name + "Enregistré" label
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        widget.student.fullName,
-                        style: theme.textTheme.bodyLarge
-                            ?.copyWith(fontWeight: FontWeight.w600),
+                // Name + avatar row
+                Row(
+                  children: [
+                    // Avatar
+                    CircleAvatar(
+                      radius: 20,
+                      backgroundColor: avatarColor,
+                      child: Text(
+                        initials,
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13),
                       ),
-                      if (widget.hasExistingRecord)
-                        Row(
-                          children: [
-                            Icon(Icons.check_circle,
-                                size: 12, color: Colors.green.shade600),
-                            const SizedBox(width: 3),
-                            Text(
-                              'Enregistré',
-                              style: theme.textTheme.labelSmall
-                                  ?.copyWith(color: Colors.green.shade600),
+                    ),
+                    const SizedBox(width: 12),
+                    // Name
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            widget.student.fullName,
+                            style: theme.textTheme.bodyMedium
+                                ?.copyWith(fontWeight: FontWeight.w600),
+                          ),
+                          if (widget.hasExistingRecord)
+                            Row(
+                              children: [
+                                Icon(Icons.check_circle,
+                                    size: 10, color: AppColors.present),
+                                const SizedBox(width: 3),
+                                Text(
+                                  'Déjà enregistré',
+                                  style: TextStyle(
+                                      fontSize: 10,
+                                      color: AppColors.present),
+                                ),
+                              ],
                             ),
-                          ],
-                        ),
-                    ],
-                  ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-
-                // Status icon
-                AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 200),
-                  child: Icon(icon, key: ValueKey(icon), color: iconColor, size: 22),
-                ),
-                const SizedBox(width: 8),
-
-                // Statut dropdown
-                DropdownButton<Statut>(
-                  value: widget.currentStatut,
-                  underline: const SizedBox(),
-                  borderRadius: BorderRadius.circular(12),
-                  isDense: true,
-                  items: Statut.values
-                      .map(
-                        (s) => DropdownMenuItem(
-                          value: s,
-                          child: Text(s.label,
-                              style: const TextStyle(fontSize: 13)),
-                        ),
-                      )
-                      .toList(),
+                const SizedBox(height: 10),
+                // Statut selector — full width below name
+                _StatutSelector(
+                  current: widget.currentStatut,
                   onChanged: widget.onStatutChanged,
                 ),
               ],
             ),
+          ),
 
-            // ── Comment field (animated expand) ───────────────────────────
-            SizeTransition(
-              sizeFactor: _expandAnimation,
-              child: Padding(
-                padding: const EdgeInsets.only(top: 10, left: 56),
-                child: TextField(
-                  controller: _commentController,
-                  onChanged: widget.onCommentChanged,
-                  maxLines: 2,
-                  style: theme.textTheme.bodySmall,
-                  decoration: InputDecoration(
-                    hintText: 'Commentaire (optionnel)',
-                    hintStyle: TextStyle(
-                        fontSize: 12, color: cs.onSurface.withValues(alpha: 0.5)),
-                    contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 8),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide(color: cs.outline),
-                    ),
-                    isDense: true,
+          // ── Comment field ─────────────────────────────────────────────
+          SizeTransition(
+            sizeFactor: _expandAnimation,
+            child: Container(
+              decoration: BoxDecoration(
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.04)
+                    : const Color(0xFFF8FAFC),
+                border: Border(
+                  top: BorderSide(
+                    color: isDark
+                        ? Colors.white.withValues(alpha: 0.07)
+                        : const Color(0xFFE2E8F0),
                   ),
+                ),
+                borderRadius: const BorderRadius.only(
+                  bottomLeft: Radius.circular(12),
+                  bottomRight: Radius.circular(12),
+                ),
+              ),
+              padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+              child: TextField(
+                controller: _commentController,
+                onChanged: widget.onCommentChanged,
+                maxLines: 2,
+                style: theme.textTheme.bodySmall,
+                decoration: InputDecoration(
+                  hintText: 'Commentaire (optionnel)',
+                  hintStyle: TextStyle(
+                      fontSize: 12,
+                      color: cs.onSurface.withValues(alpha: 0.4)),
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide:
+                        BorderSide(color: cs.outline.withValues(alpha: 0.4)),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide:
+                        BorderSide(color: cs.outline.withValues(alpha: 0.3)),
+                  ),
+                  isDense: true,
                 ),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
+  }
+}
+
+// ─── Statut Selector ─────────────────────────────────────────────────────────
+
+class _StatutSelector extends StatelessWidget {
+  final Statut current;
+  final ValueChanged<Statut?> onChanged;
+
+  const _StatutSelector({required this.current, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 6,
+      runSpacing: 6,
+      children: Statut.values.map((s) {
+        final selected = s == current;
+        final color = _color(s);
+        return GestureDetector(
+          onTap: () => onChanged(s),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: selected ? color.withValues(alpha: 0.15) : Colors.transparent,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: selected ? color : color.withValues(alpha: 0.35),
+                width: selected ? 1.5 : 1,
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(_icon(s), size: 13, color: color),
+                const SizedBox(width: 5),
+                Text(
+                  s.label,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: color,
+                    fontWeight: selected ? FontWeight.w700 : FontWeight.w400,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Color _color(Statut s) {
+    switch (s) {
+      case Statut.present:  return AppColors.present;
+      case Statut.absent:   return AppColors.absent;
+      case Statut.retard:   return AppColors.retard;
+      case Statut.justifie: return AppColors.justifie;
+    }
+  }
+
+  IconData _icon(Statut s) {
+    switch (s) {
+      case Statut.present:  return Icons.check_circle_outline;
+      case Statut.absent:   return Icons.cancel_outlined;
+      case Statut.retard:   return Icons.schedule_outlined;
+      case Statut.justifie: return Icons.info_outline;
+    }
   }
 }
