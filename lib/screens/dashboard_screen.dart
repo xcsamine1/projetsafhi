@@ -57,43 +57,70 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final fullName = prof != null ? '${prof.prenom} ${prof.nom}' : '';
     final email = prof?.email ?? '';
 
+    final isDesktop = MediaQuery.of(context).size.width >= 800;
+
+    final sidebar = _Sidebar(
+      navIndex: _navIndex,
+      labels: _labels,
+      icons: _icons,
+      selectedIcons: _selectedIcons,
+      initials: initials,
+      fullName: fullName,
+      email: email,
+      isDark: isDark,
+      onToggleTheme: widget.onToggleTheme,
+      onNavChanged: (i) {
+        setState(() => _navIndex = i);
+        if (!isDesktop) {
+          Navigator.pop(context); // close drawer on mobile
+        }
+      },
+      onAdminData: () {
+        if (!isDesktop) {
+          Navigator.pop(context); // close drawer on mobile
+        }
+        Navigator.push(context,
+            MaterialPageRoute(builder: (_) => const AdminDataScreen()));
+      },
+      onLogout: () async {
+        await auth.logout();
+        if (!mounted) return;
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const LoginScreen()),
+        );
+      },
+    );
+
     return Scaffold(
-      body: Row(
-        children: [
-          // ── Dark Sidebar ────────────────────────────────────────────────
-          _Sidebar(
-            navIndex: _navIndex,
-            labels: _labels,
-            icons: _icons,
-            selectedIcons: _selectedIcons,
-            initials: initials,
-            fullName: fullName,
-            email: email,
-            isDark: isDark,
-            onToggleTheme: widget.onToggleTheme,
-            onNavChanged: (i) => setState(() => _navIndex = i),
-            onAdminData: () => Navigator.push(context,
-                MaterialPageRoute(builder: (_) => const AdminDataScreen())),
-            onLogout: () async {
-              await auth.logout();
-              if (!mounted) return;
-              Navigator.of(context).pushReplacement(
-                MaterialPageRoute(builder: (_) => const LoginScreen()),
-              );
-            },
-          ),
-          // ── Main Content ────────────────────────────────────────────────
-          Expanded(
-            child: IndexedStack(
+      drawer: isDesktop ? null : Drawer(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        child: sidebar,
+      ),
+      body: isDesktop
+          ? Row(
+              children: [
+                // ── Dark Sidebar ────────────────────────────────────────────────
+                sidebar,
+                // ── Main Content ────────────────────────────────────────────────
+                Expanded(
+                  child: IndexedStack(
+                    index: _navIndex,
+                    children: [
+                      _DashboardBody(onRefresh: _loadData),
+                      const SessionListScreen(),
+                    ],
+                  ),
+                ),
+              ],
+            )
+          : IndexedStack(
               index: _navIndex,
               children: [
                 _DashboardBody(onRefresh: _loadData),
                 const SessionListScreen(),
               ],
             ),
-          ),
-        ],
-      ),
       // FAB for creating new session
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => Navigator.push(

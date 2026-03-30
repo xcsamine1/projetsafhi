@@ -6,6 +6,44 @@ const db = require('../config/db');
 const router = express.Router();
 
 /**
+ * POST /api/auth/register
+ * Body: { nom, prenom, email, password }
+ */
+router.post('/register', async (req, res) => {
+    const { nom, prenom, email, password } = req.body;
+
+    if (!nom || !prenom || !email || !password) {
+        return res.status(400).json({ message: 'Tous les champs sont requis (nom, prenom, email, password).' });
+    }
+
+    try {
+        // Check if email already exists
+        const [existing] = await db.execute('SELECT id_prof FROM Professeur WHERE email = ?', [email]);
+        if (existing.length > 0) {
+            return res.status(400).json({ message: 'Cet email est déjà utilisé.' });
+        }
+
+        // Hash password
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(password, salt);
+
+        // Insert into database
+        const [result] = await db.execute(
+            'INSERT INTO Professeur (nom, prenom, email, password) VALUES (?, ?, ?, ?)',
+            [nom, prenom, email, hashedPassword]
+        );
+
+        return res.status(201).json({
+            message: 'Professeur créé avec succès.',
+            professeurId: result.insertId
+        });
+    } catch (err) {
+        console.error('Register error:', err);
+        return res.status(500).json({ message: 'Erreur serveur.' });
+    }
+});
+
+/**
  * POST /api/auth/login
  * Body: { email, password }
  * Returns: { token, professeur }

@@ -78,6 +78,14 @@ class _SessionListScreenState extends State<SessionListScreen> {
                       const EdgeInsets.fromLTRB(16, 16, 16, 0),
                   child: Row(
                     children: [
+                      if (Scaffold.maybeOf(context)?.hasDrawer ?? false)
+                        Padding(
+                          padding: const EdgeInsets.only(right: 16),
+                          child: IconButton(
+                            icon: const Icon(Icons.menu),
+                            onPressed: () => Scaffold.of(context).openDrawer(),
+                          ),
+                        ),
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
