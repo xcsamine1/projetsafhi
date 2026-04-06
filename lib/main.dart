@@ -33,28 +33,46 @@ class _AttendanceAppState extends State<AttendanceApp> {
   /// Tracks dark/light mode toggle — persisted per session.
   ThemeMode _themeMode = ThemeMode.system;
 
+  // ── Service singletons — created once, never on rebuild ───────────────────
+  late final ApiService _apiService;
+  late final AuthService _authService;
+  late final SeanceService _seanceService;
+  late final EtudiantService _etudiantService;
+  late final PresenceService _presenceService;
+
+  @override
+  void initState() {
+    super.initState();
+    _apiService = ApiService();
+    _authService = AuthService(_apiService);
+    _seanceService = SeanceService(_apiService);
+    _etudiantService = EtudiantService(_apiService);
+    _presenceService = PresenceService(_apiService);
+  }
+
   void toggleTheme() {
     setState(() {
-      _themeMode =
-          _themeMode == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark;
+      if (_themeMode == ThemeMode.system) {
+        // Correctly detect current platform brightness to determine next mode
+        final brightness =
+            WidgetsBinding.instance.platformDispatcher.platformBrightness;
+        _themeMode =
+            brightness == Brightness.dark ? ThemeMode.light : ThemeMode.dark;
+      } else {
+        _themeMode =
+            _themeMode == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark;
+      }
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    // ── Shared service singletons ─────────────────────────────────────────────
-    final apiService = ApiService();
-    final authService = AuthService(apiService);
-    final seanceService = SeanceService(apiService);
-    final etudiantService = EtudiantService(apiService);
-    final presenceService = PresenceService(apiService);
-
     return MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => AuthProvider(authService)),
-        ChangeNotifierProvider(create: (_) => SeanceProvider(seanceService)),
+        ChangeNotifierProvider(create: (_) => AuthProvider(_authService)),
+        ChangeNotifierProvider(create: (_) => SeanceProvider(_seanceService)),
         ChangeNotifierProvider(
-          create: (_) => PresenceProvider(etudiantService, presenceService),
+          create: (_) => PresenceProvider(_etudiantService, _presenceService),
         ),
       ],
       child: MaterialApp(

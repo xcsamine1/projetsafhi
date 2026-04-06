@@ -131,113 +131,125 @@ class _StudentsScreenState extends State<StudentsScreen> {
     final cs = theme.colorScheme;
     final isDark = theme.brightness == Brightness.dark;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Étudiants'),
-        actions: [
-          IconButton(icon: const Icon(Icons.refresh_rounded), tooltip: 'Actualiser', onPressed: _loadData),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () async {
-          final added = await Navigator.push<bool>(
-            context,
-            MaterialPageRoute(builder: (_) => AddStudentScreen(filieres: _filieres)),
-          );
-          if (added == true) _loadData();
-        },
-        backgroundColor: AppColors.seed,
-        foregroundColor: Colors.white,
-        icon: const Icon(Icons.person_add_rounded),
-        label: const Text('Ajouter'),
-      ),
-      body: Column(
-        children: [
-          // ── Search + Filter bar ─────────────────────────────────────────
-          Container(
-            color: isDark ? cs.surfaceContainer : Colors.white,
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+    return Column(
+      children: [
+        // ── Custom AppBar ─────────────────────────────────────────────
+        Container(
+          color: isDark ? cs.surfaceContainer : Colors.white,
+          child: SafeArea(
+            bottom: false,
             child: Column(
               children: [
-                TextField(
-                  decoration: InputDecoration(
-                    hintText: 'Rechercher un étudiant...',
-                    prefixIcon: const Icon(Icons.search_rounded, size: 20),
-                    suffixIcon: _searchQuery.isNotEmpty
-                        ? IconButton(
-                            icon: const Icon(Icons.clear, size: 18),
-                            onPressed: () => setState(() => _searchQuery = ''))
-                        : null,
-                  ),
-                  onChanged: (v) => setState(() => _searchQuery = v),
-                ),
-                const SizedBox(height: 10),
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
                   child: Row(
                     children: [
-                      _FiliereChip(
-                        label: 'Tous',
-                        selected: _selectedFiliere == null,
-                        color: AppColors.seed,
-                        onTap: () => setState(() => _selectedFiliere = null),
-                      ),
-                      ..._filieres.map((f) => _FiliereChip(
-                            label: f.nomFiliere,
-                            selected: _selectedFiliere == f.idFiliere,
-                            color: _filiereColor(f.idFiliere),
-                            onTap: () => setState(() => _selectedFiliere = f.idFiliere),
-                          )),
+                      if (Scaffold.maybeOf(context)?.hasDrawer ?? false)
+                        Padding(
+                          padding: const EdgeInsets.only(right: 16),
+                          child: IconButton(
+                            icon: const Icon(Icons.menu_rounded),
+                            onPressed: () => Scaffold.of(context).openDrawer(),
+                          ),
+                        ),
+                      Text('Étudiants',
+                          style: theme.textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.bold)),
+                      const Spacer(),
+                      IconButton(
+                          icon: const Icon(Icons.refresh_rounded),
+                          tooltip: 'Actualiser',
+                          onPressed: _loadData),
                     ],
                   ),
                 ),
+                // ── Search + Filter bar ───────────────────────────────────────
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  child: Column(
+                    children: [
+                      TextField(
+                        decoration: InputDecoration(
+                          hintText: 'Rechercher un étudiant...',
+                          prefixIcon: const Icon(Icons.search_rounded, size: 20),
+                          suffixIcon: _searchQuery.isNotEmpty
+                              ? IconButton(
+                                  icon: const Icon(Icons.clear, size: 18),
+                                  onPressed: () => setState(() => _searchQuery = ''))
+                              : null,
+                        ),
+                        onChanged: (v) => setState(() => _searchQuery = v),
+                      ),
+                      const SizedBox(height: 10),
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: [
+                            _FiliereChip(
+                              label: 'Tous',
+                              selected: _selectedFiliere == null,
+                              color: AppColors.seed,
+                              onTap: () => setState(() => _selectedFiliere = null),
+                            ),
+                            ..._filieres.map((f) => _FiliereChip(
+                                  label: f.nomFiliere,
+                                  selected: _selectedFiliere == f.idFiliere,
+                                  color: _filiereColor(f.idFiliere),
+                                  onTap: () => setState(() => _selectedFiliere = f.idFiliere),
+                                )),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Divider(height: 1, color: isDark ? Colors.white12 : const Color(0xFFE2E8F0)),
               ],
             ),
           ),
-          Divider(height: 1, color: isDark ? Colors.white12 : const Color(0xFFE2E8F0)),
+        ),
 
-          // ── List ───────────────────────────────────────────────────────
-          Expanded(
-            child: _isLoading
-                ? const LoadingOverlay(message: 'Chargement...')
-                : _error != null
-                    ? _ErrorView(error: _error!, onRetry: _loadData)
-                    : _filtered.isEmpty
-                        ? _EmptyView(query: _searchQuery, hasFilter: _selectedFiliere != null)
-                        : RefreshIndicator(
-                            onRefresh: _loadData,
-                            child: ListView.separated(
-                              padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
-                              itemCount: _filtered.length,
-                              separatorBuilder: (_, __) => const SizedBox(height: 8),
-                              itemBuilder: (ctx, i) {
-                                final e = _filtered[i];
-                                final color = _filiereColor(e.idFiliere);
-                                return _DismissibleStudentCard(
-                                  etudiant: e,
-                                  filiereName: _filiereName(e.idFiliere),
-                                  filiereColor: color,
-                                  isDark: isDark,
-                                  onDelete: () => _deleteStudent(e),
-                                );
-                              },
-                            ),
+        // ── List ───────────────────────────────────────────────────────
+        Expanded(
+          child: _isLoading
+              ? const LoadingOverlay(message: 'Chargement...')
+              : _error != null
+                  ? _ErrorView(error: _error!, onRetry: _loadData)
+                  : _filtered.isEmpty
+                      ? _EmptyView(query: _searchQuery, hasFilter: _selectedFiliere != null)
+                      : RefreshIndicator(
+                          onRefresh: _loadData,
+                          child: ListView.separated(
+                            padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
+                            itemCount: _filtered.length,
+                            separatorBuilder: (_, __) => const SizedBox(height: 8),
+                            itemBuilder: (ctx, i) {
+                              final e = _filtered[i];
+                              final color = _filiereColor(e.idFiliere);
+                              return _DismissibleStudentCard(
+                                etudiant: e,
+                                filiereName: _filiereName(e.idFiliere),
+                                filiereColor: color,
+                                isDark: isDark,
+                                onDelete: () => _deleteStudent(e),
+                              );
+                            },
                           ),
-          ),
+                        ),
+        ),
 
-          // ── Count footer ───────────────────────────────────────────────
-          if (!_isLoading && _error == null)
-            Container(
-              width: double.infinity,
-              color: isDark ? cs.surfaceContainer : Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-              child: Text(
-                '${_filtered.length} étudiant${_filtered.length != 1 ? 's' : ''}',
-                style: TextStyle(fontSize: 12, color: cs.onSurface.withValues(alpha: 0.5)),
-              ),
+        // ── Count footer ───────────────────────────────────────────────
+        if (!_isLoading && _error == null)
+          Container(
+            width: double.infinity,
+            color: isDark ? cs.surfaceContainer : Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+            child: Text(
+              '${_filtered.length} étudiant${_filtered.length != 1 ? 's' : ''}',
+              style: TextStyle(fontSize: 12, color: cs.onSurface.withValues(alpha: 0.5)),
             ),
-        ],
-      ),
+          ),
+      ],
     );
   }
 }

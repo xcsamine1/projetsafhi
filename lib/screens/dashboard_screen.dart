@@ -13,6 +13,7 @@ import 'create_seance_screen.dart';
 import 'admin_data_screen.dart';
 import 'login_screen.dart';
 import 'students_screen.dart';
+import 'add_student_screen.dart';
 
 /// Main shell with side navigation rail matching the ESTC 2025 dashboard design.
 class DashboardScreen extends StatefulWidget {
@@ -27,15 +28,17 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   int _navIndex = 0;
+  bool _isSidebarCollapsed = false;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _loadData());
+    _loadData();
   }
 
   Future<void> _loadData() async {
     final auth = context.read<AuthProvider>();
+    if (!auth.isAuthenticated) return;
     await context.read<SeanceProvider>().loadSeances(
           profId: auth.professor?.idProf ?? 1,
           token: auth.token,
@@ -43,8 +46,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   final _labels = ['Tableau de bord', 'Séances', 'Étudiants'];
-  final _icons = [Icons.dashboard_outlined, Icons.calendar_month_outlined, Icons.people_outline_rounded];
-  final _selectedIcons = [Icons.dashboard_rounded, Icons.calendar_month_rounded, Icons.people_rounded];
+  final _icons = [
+    Icons.dashboard_outlined,
+    Icons.calendar_month_outlined,
+    Icons.people_outline_rounded
+  ];
+  final _selectedIcons = [
+    Icons.dashboard_rounded,
+    Icons.calendar_month_rounded,
+    Icons.people_rounded
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -69,7 +80,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
       fullName: fullName,
       email: email,
       isDark: isDark,
+      isCollapsed: _isSidebarCollapsed && isDesktop,
       onToggleTheme: widget.onToggleTheme,
+      onCollapseToggle: () =>
+          setState(() => _isSidebarCollapsed = !_isSidebarCollapsed),
       onNavChanged: (i) {
         setState(() => _navIndex = i);
         if (!isDesktop) {
@@ -93,15 +107,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
 
     return Scaffold(
-      drawer: isDesktop ? null : Drawer(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        child: sidebar,
-      ),
+      drawer: isDesktop
+          ? null
+          : Drawer(
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+              child: sidebar,
+            ),
       body: isDesktop
           ? Row(
               children: [
-                // ── Dark Sidebar ────────────────────────────────────────────────
+                // ── Sidebar ────────────────────────────────────────────────
                 sidebar,
                 // ── Main Content ────────────────────────────────────────────────
                 Expanded(
@@ -124,17 +140,37 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 const StudentsScreen(),
               ],
             ),
-      // FAB for creating new session
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const CreateSeanceScreen()),
-        ),
-        backgroundColor: AppColors.seed,
-        foregroundColor: Colors.white,
-        icon: const Icon(Icons.add),
-        label: const Text('Séance'),
-      ),
+      // FAB adaptive for each screen
+      floatingActionButton: _navIndex == 2
+          ? FloatingActionButton.extended(
+              onPressed: () async {
+                final auth = context.read<AuthProvider>();
+                final seanceProv = context.read<SeanceProvider>();
+                final meta = await seanceProv.fetchMetadata(token: auth.token);
+                if (!mounted) return;
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        AddStudentScreen(filieres: meta?.filieres ?? []),
+                  ),
+                );
+              },
+              backgroundColor: AppColors.seed,
+              foregroundColor: Colors.white,
+              icon: const Icon(Icons.person_add_rounded),
+              label: const Text('Étudiant'),
+            )
+          : FloatingActionButton.extended(
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const CreateSeanceScreen()),
+              ),
+              backgroundColor: AppColors.seed,
+              foregroundColor: Colors.white,
+              icon: const Icon(Icons.add),
+              label: const Text('Séance'),
+            ),
     );
   }
 }
@@ -150,7 +186,9 @@ class _Sidebar extends StatelessWidget {
   final String fullName;
   final String email;
   final bool isDark;
+  final bool isCollapsed;
   final VoidCallback? onToggleTheme;
+  final VoidCallback onCollapseToggle;
   final ValueChanged<int> onNavChanged;
   final VoidCallback onAdminData;
   final VoidCallback onLogout;
@@ -164,7 +202,9 @@ class _Sidebar extends StatelessWidget {
     required this.fullName,
     required this.email,
     required this.isDark,
+    required this.isCollapsed,
     required this.onToggleTheme,
+    required this.onCollapseToggle,
     required this.onNavChanged,
     required this.onAdminData,
     required this.onLogout,
@@ -172,8 +212,10 @@ class _Sidebar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 220,
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeInOut,
+      width: isCollapsed ? 70 : 220,
       decoration: BoxDecoration(
         color: AppColors.sidebarBg,
         boxShadow: [
@@ -186,12 +228,12 @@ class _Sidebar extends StatelessWidget {
       ),
       child: SafeArea(
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ── Logo ──────────────────────────────────────────────────────
+            // ── Logo / Collapse Toggle ──────────────────────────────────────
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 24, 20, 8),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
               child: Row(
+                mainAxisAlignment: isCollapsed ? MainAxisAlignment.center : MainAxisAlignment.start,
                 children: [
                   Container(
                     padding: const EdgeInsets.all(8),
@@ -199,33 +241,42 @@ class _Sidebar extends StatelessWidget {
                       color: AppColors.sidebarAccent.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: const Icon(Icons.school_rounded,
-                        color: Colors.white, size: 22),
+                    child: const Icon(Icons.school_rounded, color: Colors.white, size: 22),
                   ),
-                  const SizedBox(width: 12),
-                  const Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'ESTC 2025',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 15,
-                        ),
+                  if (!isCollapsed) ...[
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'ESTC 2025',
+                            style: TextStyle(
+                                color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          Text(
+                            'Attendify',
+                            style: TextStyle(color: Colors.white54, fontSize: 10),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
                       ),
-                      Text(
-                        'Gestion des présences',
-                        style: TextStyle(
-                          color: Colors.white54,
-                          fontSize: 10,
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ],
               ),
             ),
+
+            // Collapse button (Desktop only logic is in parent, but we show icon here)
+            if (MediaQuery.of(context).size.width >= 800)
+              _SidebarAction(
+                icon: isCollapsed ? Icons.chevron_right_rounded : Icons.chevron_left_rounded,
+                label: 'Réduire',
+                isCollapsed: isCollapsed,
+                onTap: onCollapseToggle,
+              ),
+
             const SizedBox(height: 12),
             Divider(color: Colors.white.withValues(alpha: 0.08), height: 1),
             const SizedBox(height: 12),
@@ -237,6 +288,7 @@ class _Sidebar extends StatelessWidget {
                 icon: selected ? selectedIcons[i] : icons[i],
                 label: labels[i],
                 selected: selected,
+                isCollapsed: isCollapsed,
                 onTap: () => onNavChanged(i),
               );
             }),
@@ -248,11 +300,13 @@ class _Sidebar extends StatelessWidget {
             _SidebarAction(
               icon: isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
               label: isDark ? 'Mode clair' : 'Mode sombre',
+              isCollapsed: isCollapsed,
               onTap: onToggleTheme ?? () {},
             ),
             _SidebarAction(
               icon: Icons.storage_rounded,
               label: 'Gestion données',
+              isCollapsed: isCollapsed,
               onTap: onAdminData,
             ),
 
@@ -261,54 +315,51 @@ class _Sidebar extends StatelessWidget {
             // ── User chip ─────────────────────────────────────────────────
             Padding(
               padding: const EdgeInsets.all(16),
-              child: Row(
-                children: [
-                  CircleAvatar(
-                    radius: 18,
-                    backgroundColor: AppColors.sidebarAccent,
-                    child: Text(
-                      initials,
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+              child: isCollapsed
+                  ? Tooltip(
+                      message: fullName,
+                      child: CircleAvatar(
+                        radius: 18,
+                        backgroundColor: AppColors.sidebarAccent,
+                        child: Text(initials,
+                            style: const TextStyle(color: Colors.white, fontSize: 10)),
+                      ),
+                    )
+                  : Row(
                       children: [
-                        Text(
-                          fullName,
-                          style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                        CircleAvatar(
+                          radius: 18,
+                          backgroundColor: AppColors.sidebarAccent,
+                          child: Text(
+                            initials,
+                            style: const TextStyle(
+                                color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                          ),
                         ),
-                        Text(
-                          email,
-                          style: const TextStyle(
-                              color: Colors.white54, fontSize: 10),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(fullName,
+                                  style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600),
+                                  overflow: TextOverflow.ellipsis),
+                              Text(email,
+                                  style: const TextStyle(color: Colors.white54, fontSize: 10),
+                                  overflow: TextOverflow.ellipsis),
+                            ],
+                          ),
                         ),
+                        IconButton(
+                            onPressed: onLogout,
+                            icon: const Icon(Icons.logout_rounded, color: Colors.white54, size: 18),
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints()),
                       ],
                     ),
-                  ),
-                  InkWell(
-                    onTap: onLogout,
-                    borderRadius: BorderRadius.circular(8),
-                    child: const Padding(
-                      padding: EdgeInsets.all(4),
-                      child: Icon(Icons.logout_rounded,
-                          color: Colors.white54, size: 18),
-                    ),
-                  ),
-                ],
-              ),
             ),
           ],
         ),
@@ -321,49 +372,51 @@ class _NavItem extends StatelessWidget {
   final IconData icon;
   final String label;
   final bool selected;
+  final bool isCollapsed;
   final VoidCallback onTap;
 
-  const _NavItem(
-      {required this.icon,
-      required this.label,
-      required this.selected,
-      required this.onTap});
+  const _NavItem({
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.isCollapsed,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
-      child: Material(
-        color: selected
-            ? AppColors.sidebarSelected
-            : Colors.transparent,
-        borderRadius: BorderRadius.circular(10),
-        child: InkWell(
-          onTap: onTap,
+      child: Tooltip(
+        message: isCollapsed ? label : '',
+        child: Material(
+          color: selected ? AppColors.sidebarSelected : Colors.transparent,
           borderRadius: BorderRadius.circular(10),
-          splashColor: Colors.white.withValues(alpha: 0.05),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-            child: Row(
-              children: [
-                Icon(icon,
-                    color: selected ? Colors.white : Colors.white54, size: 20),
-                const SizedBox(width: 12),
-                Text(
-                  label,
-                  style: TextStyle(
-                    color: selected ? Colors.white : Colors.white60,
-                    fontWeight:
-                        selected ? FontWeight.w600 : FontWeight.normal,
-                    fontSize: 13,
-                  ),
-                ),
-                if (selected) ...[
-                  const Spacer(),
-                  const Icon(Icons.chevron_right,
-                      color: Colors.white54, size: 16),
-                ]
-              ],
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(10),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              child: Row(
+                mainAxisAlignment: isCollapsed ? MainAxisAlignment.center : MainAxisAlignment.start,
+                children: [
+                  Icon(icon, color: selected ? Colors.white : Colors.white54, size: 20),
+                  if (!isCollapsed) ...[
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        label,
+                        style: TextStyle(
+                            color: selected ? Colors.white : Colors.white60,
+                            fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+                            fontSize: 13),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    if (selected) const Icon(Icons.chevron_right, color: Colors.white54, size: 16),
+                  ]
+                ],
+              ),
             ),
           ),
         ),
@@ -375,24 +428,34 @@ class _NavItem extends StatelessWidget {
 class _SidebarAction extends StatelessWidget {
   final IconData icon;
   final String label;
+  final bool isCollapsed;
   final VoidCallback onTap;
 
-  const _SidebarAction(
-      {required this.icon, required this.label, required this.onTap});
+  const _SidebarAction({
+    required this.icon,
+    required this.label,
+    required this.isCollapsed,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-        child: Row(
-          children: [
-            Icon(icon, color: Colors.white54, size: 18),
-            const SizedBox(width: 12),
-            Text(label,
-                style: const TextStyle(color: Colors.white54, fontSize: 12)),
-          ],
+    return Tooltip(
+      message: isCollapsed ? label : '',
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+          child: Row(
+            mainAxisAlignment: isCollapsed ? MainAxisAlignment.center : MainAxisAlignment.start,
+            children: [
+              Icon(icon, color: Colors.white54, size: 18),
+              if (!isCollapsed) ...[
+                const SizedBox(width: 12),
+                Text(label, style: const TextStyle(color: Colors.white54, fontSize: 12)),
+              ],
+            ],
+          ),
         ),
       ),
     );
