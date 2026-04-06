@@ -6,6 +6,8 @@ import '../config/theme.dart';
 import '../models/seance.dart';
 import '../providers/auth_provider.dart';
 import '../providers/presence_provider.dart';
+import '../providers/seance_provider.dart';
+
 import '../widgets/student_attendance_tile.dart';
 import '../widgets/loading_overlay.dart';
 import '../widgets/app_error_widget.dart';
@@ -43,6 +45,12 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         await context.read<PresenceProvider>().submitAll(token: token);
 
     if (!mounted) return;
+
+    if (success) {
+      // Update the card badge on the dashboard / session list instantly.
+      context.read<SeanceProvider>().markSubmitted(widget.seance.idSeance);
+    }
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Row(

@@ -77,8 +77,14 @@ class _CreateSeanceScreenState extends State<CreateSeanceScreen> {
         idProf:    auth.professor!.idProf,
         idModule:  _selectedModule!,
         idFiliere: _selectedFiliere!,
-        nomModule:  _metadata?.modules.firstWhere((m) => m.idModule == _selectedModule).nomModule,
-        nomFiliere: _metadata?.filieres.firstWhere((f) => f.idFiliere == _selectedFiliere).nomFiliere,
+        nomModule:  _metadata?.modules
+            .firstWhere((m) => m.idModule == _selectedModule,
+                orElse: () => throw StateError('Module not found'))
+            .nomModule,
+        nomFiliere: _metadata?.filieres
+            .firstWhere((f) => f.idFiliere == _selectedFiliere,
+                orElse: () => throw StateError('Filière not found'))
+            .nomFiliere,
         nomProf: '${auth.professor!.prenom} ${auth.professor!.nom}',
       );
       await seanceProv.addSeance(newSeance, token: auth.token);

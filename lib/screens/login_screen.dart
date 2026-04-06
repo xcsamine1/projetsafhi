@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 import '../config/app_config.dart';
 import '../config/theme.dart';
 import '../providers/auth_provider.dart';
-import 'dashboard_screen.dart';
+// DashboardScreen navigation is handled reactively by _AppRoot — no import needed here.
 
 /// Login screen for professors — ESTC 2025 branded design.
 class LoginScreen extends StatefulWidget {
@@ -29,24 +29,22 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     final authProvider = context.read<AuthProvider>();
-    bool success;
 
     if (AppConfig.useDummyData) {
       authProvider.mockLogin();
-      success = true;
-    } else {
-      success = await authProvider.login(
-        _emailController.text.trim(),
-        _passwordController.text,
-      );
+      // _AppRoot watches isAuthenticated and will swap to DashboardScreen
+      return;
     }
 
+    final success = await authProvider.login(
+      _emailController.text.trim(),
+      _passwordController.text,
+    );
+
+    // On success _AppRoot rebuilds to show DashboardScreen (with theme callbacks).
+    // Only show an error snackbar on failure.
     if (!mounted) return;
-    if (success) {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const DashboardScreen()),
-      );
-    } else {
+    if (!success) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(authProvider.error ?? 'Échec de connexion'),
@@ -230,14 +228,14 @@ class _LoginScreenState extends State<LoginScreen> {
                                     color: AppColors.seed.withValues(alpha: 0.08),
                                     borderRadius: BorderRadius.circular(10),
                                   ),
-                                  child: Row(
+                                  child: const Row(
                                     children: [
                                       Icon(Icons.info_outline,
                                           size: 16, color: AppColors.seed),
-                                      const SizedBox(width: 8),
+                                      SizedBox(width: 8),
                                       Expanded(
                                         child: Text(
-                                          'Mode démo actif. Cliquez sur Se connecter.',
+                                          'Mode d\u00e9mo actif. Cliquez sur Se connecter.',
                                           style: TextStyle(
                                               fontSize: 12,
                                               color: AppColors.seed),

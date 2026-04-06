@@ -31,12 +31,14 @@ class AuthProvider extends ChangeNotifier {
     final session = await _authService.restoreSession();
     if (session != null) {
       _token = session['token'] as String;
-      // Build a minimal Professeur object from stored data
+      final fullName = session['name'] as String;
+      final parts = fullName.split(' ');
+      // Build a Professeur from stored data — email is now also persisted.
       _professor = Professeur(
         idProf: session['id'] as int,
-        nom: (session['name'] as String).split(' ').last,
-        prenom: (session['name'] as String).split(' ').first,
-        email: '',
+        nom: parts.length > 1 ? parts.sublist(1).join(' ') : fullName,
+        prenom: parts.first,
+        email: session['email'] as String? ?? '',
       );
       notifyListeners();
     }

@@ -7,8 +7,14 @@ import '../models/seance.dart';
 class SeanceCard extends StatelessWidget {
   final Seance seance;
   final VoidCallback onTap;
+  final bool isSubmitted;
 
-  const SeanceCard({super.key, required this.seance, required this.onTap});
+  const SeanceCard({
+    super.key,
+    required this.seance,
+    required this.onTap,
+    this.isSubmitted = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -52,8 +58,8 @@ class SeanceCard extends StatelessWidget {
                       child: Column(
                         children: [
                           Text(
-                            seance.heureDebut.substring(0, 5),
-                            style: TextStyle(
+                            _safeTime(seance.heureDebut),
+                            style: const TextStyle(
                               color: AppColors.seed,
                               fontWeight: FontWeight.bold,
                               fontSize: 13,
@@ -88,7 +94,7 @@ class SeanceCard extends StatelessWidget {
                                   color: cs.onSurface.withValues(alpha: 0.4)),
                               const SizedBox(width: 3),
                               Text(
-                                '${seance.heureDebut.substring(0, 5)}–${seance.heureFin.substring(0, 5)}',
+                                '${_safeTime(seance.heureDebut)}–${_safeTime(seance.heureFin)}',
                                 style: TextStyle(
                                     fontSize: 11,
                                     color: cs.onSurface.withValues(alpha: 0.5)),
@@ -133,7 +139,7 @@ class SeanceCard extends StatelessWidget {
                           color: cs.onSurface.withValues(alpha: 0.45)),
                     ),
                     const Spacer(),
-                    _StatusBadge(isToday: isToday),
+                    _StatusBadge(isToday: isToday, isSubmitted: isSubmitted),
                   ],
                 ),
               ),
@@ -144,7 +150,8 @@ class SeanceCard extends StatelessWidget {
     );
   }
 
-  Color _filiereColor(String name) {
+  // Static — no instance state, avoids vtable overhead per card.
+  static Color _filiereColor(String name) {
     final lower = name.toLowerCase();
     if (lower.contains('info')) return AppColors.infoBlue;
     if (lower.contains('gei') || lower.contains('gii')) return AppColors.geiiPurple;
@@ -152,6 +159,10 @@ class SeanceCard extends StatelessWidget {
     if (lower.contains('math')) return const Color(0xFFF59E0B);
     return AppColors.sidebarAccent;
   }
+
+  /// Safely extract HH:mm from a time string, padding if needed.
+  static String _safeTime(String t) =>
+      t.length >= 5 ? t.substring(0, 5) : t;
 }
 
 class _FiliereChip extends StatelessWidget {
@@ -179,22 +190,25 @@ class _FiliereChip extends StatelessWidget {
 
 class _StatusBadge extends StatelessWidget {
   final bool isToday;
+  final bool isSubmitted;
 
-  const _StatusBadge({required this.isToday});
+  const _StatusBadge({required this.isToday, this.isSubmitted = false});
 
   @override
   Widget build(BuildContext context) {
+    // Completed = either explicitly submitted this session OR it's a past session.
+    final completed = isSubmitted || !isToday;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: isToday
-            ? const Color(0xFFF59E0B).withValues(alpha: 0.12)
-            : AppColors.present.withValues(alpha: 0.12),
+        color: completed
+            ? AppColors.present.withValues(alpha: 0.12)
+            : const Color(0xFFF59E0B).withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: isToday
-              ? const Color(0xFFF59E0B).withValues(alpha: 0.4)
-              : AppColors.present.withValues(alpha: 0.4),
+          color: completed
+              ? AppColors.present.withValues(alpha: 0.4)
+              : const Color(0xFFF59E0B).withValues(alpha: 0.4),
           width: 0.8,
         ),
       ),
@@ -202,17 +216,17 @@ class _StatusBadge extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
-            isToday ? Icons.schedule : Icons.check_circle,
+            completed ? Icons.check_circle : Icons.schedule,
             size: 11,
-            color: isToday ? const Color(0xFFF59E0B) : AppColors.present,
+            color: completed ? AppColors.present : const Color(0xFFF59E0B),
           ),
           const SizedBox(width: 4),
           Text(
-            isToday ? 'En attente' : 'Complétée',
+            completed ? 'Complétée' : 'En attente',
             style: TextStyle(
               fontSize: 10,
               fontWeight: FontWeight.w600,
-              color: isToday ? const Color(0xFFF59E0B) : AppColors.present,
+              color: completed ? AppColors.present : const Color(0xFFF59E0B),
             ),
           ),
         ],

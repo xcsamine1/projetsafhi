@@ -33,7 +33,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   void initState() {
     super.initState();
-    _loadData();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadData());
   }
 
   Future<void> _loadData() async {
@@ -80,6 +80,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       fullName: fullName,
       email: email,
       isDark: isDark,
+      isDesktop: isDesktop,
       isCollapsed: _isSidebarCollapsed && isDesktop,
       onToggleTheme: widget.onToggleTheme,
       onCollapseToggle: () =>
@@ -98,9 +99,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
             MaterialPageRoute(builder: (_) => const AdminDataScreen()));
       },
       onLogout: () async {
+        // Capture navigator before async gap to avoid context-across-await lint.
+        final navigator = Navigator.of(context);
         await auth.logout();
         if (!mounted) return;
-        Navigator.of(context).pushReplacement(
+        navigator.pushReplacement(
           MaterialPageRoute(builder: (_) => const LoginScreen()),
         );
       },
@@ -124,7 +127,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   child: IndexedStack(
                     index: _navIndex,
                     children: [
-                      _DashboardBody(onRefresh: _loadData),
+                      _DashboardBody(
+                        onRefresh: _loadData,
+                        onSeeAll: () => setState(() => _navIndex = 1),
+                      ),
                       const SessionListScreen(),
                       const StudentsScreen(),
                     ],
@@ -135,7 +141,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
           : IndexedStack(
               index: _navIndex,
               children: [
-                _DashboardBody(onRefresh: _loadData),
+                _DashboardBody(
+                  onRefresh: _loadData,
+                  onSeeAll: () => setState(() => _navIndex = 1),
+                ),
                 const SessionListScreen(),
                 const StudentsScreen(),
               ],
@@ -143,13 +152,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
       // FAB adaptive for each screen
       floatingActionButton: _navIndex == 2
           ? FloatingActionButton.extended(
-              onPressed: () async {
-                final auth = context.read<AuthProvider>();
+          onPressed: () async {
+                final authLocal = context.read<AuthProvider>();
                 final seanceProv = context.read<SeanceProvider>();
-                final meta = await seanceProv.fetchMetadata(token: auth.token);
+                // Capture navigator before async gap.
+                final navigator = Navigator.of(context);
+                final meta = await seanceProv.fetchMetadata(token: authLocal.token);
                 if (!mounted) return;
-                Navigator.push(
-                  context,
+                navigator.push(
                   MaterialPageRoute(
                     builder: (_) =>
                         AddStudentScreen(filieres: meta?.filieres ?? []),
@@ -186,6 +196,7 @@ class _Sidebar extends StatelessWidget {
   final String fullName;
   final String email;
   final bool isDark;
+  final bool isDesktop; // ← passed from parent; no internal MediaQuery needed
   final bool isCollapsed;
   final VoidCallback? onToggleTheme;
   final VoidCallback onCollapseToggle;
@@ -202,6 +213,7 @@ class _Sidebar extends StatelessWidget {
     required this.fullName,
     required this.email,
     required this.isDark,
+    required this.isDesktop,
     required this.isCollapsed,
     required this.onToggleTheme,
     required this.onCollapseToggle,
@@ -226,9 +238,12 @@ class _Sidebar extends StatelessWidget {
           ),
         ],
       ),
-      child: SafeArea(
-        child: Column(
-          children: [
+      child: ClipRect(
+        child: SizedBox(
+          width: 220, // Keep constant width for children to avoid flex layout shifts during animation
+          child: SafeArea(
+            child: Column(
+              children: [
             // ── Logo / Collapse Toggle ──────────────────────────────────────
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
@@ -252,11 +267,11 @@ class _Sidebar extends StatelessWidget {
                           Text(
                             'ESTC 2025',
                             style: TextStyle(
-                                color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+                                color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
                             overflow: TextOverflow.ellipsis,
                           ),
                           Text(
-                            'Attendify',
+                            'Présences',
                             style: TextStyle(color: Colors.white54, fontSize: 10),
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -268,8 +283,8 @@ class _Sidebar extends StatelessWidget {
               ),
             ),
 
-            // Collapse button (Desktop only logic is in parent, but we show icon here)
-            if (MediaQuery.of(context).size.width >= 800)
+            // Collapse button (desktop only — uses the isDesktop param, no extra MediaQuery)
+            if (isDesktop)
               _SidebarAction(
                 icon: isCollapsed ? Icons.chevron_right_rounded : Icons.chevron_left_rounded,
                 label: 'Réduire',
@@ -364,7 +379,9 @@ class _Sidebar extends StatelessWidget {
           ],
         ),
       ),
-    );
+    ),
+  ),
+);
   }
 }
 
@@ -452,7 +469,13 @@ class _SidebarAction extends StatelessWidget {
               Icon(icon, color: Colors.white54, size: 18),
               if (!isCollapsed) ...[
                 const SizedBox(width: 12),
-                Text(label, style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                Expanded(
+                  child: Text(
+                    label,
+                    style: const TextStyle(color: Colors.white54, fontSize: 12),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
               ],
             ],
           ),
@@ -466,15 +489,22 @@ class _SidebarAction extends StatelessWidget {
 
 class _DashboardBody extends StatelessWidget {
   final Future<void> Function() onRefresh;
+  final VoidCallback? onSeeAll;
 
-  const _DashboardBody({required this.onRefresh});
+  const _DashboardBody({required this.onRefresh, this.onSeeAll});
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final seanceProv = context.watch<SeanceProvider>();
-    final auth = context.watch<AuthProvider>();
+    // Use select so this widget only rebuilds when the initials string changes,
+    // not on every AuthProvider notification (e.g. loading / error flags).
+    final initials = context.select<AuthProvider, String>(
+      (a) => a.professor != null
+          ? '${a.professor!.prenom[0]}${a.professor!.nom[0]}'.toUpperCase()
+          : 'AS',
+    );
     final isDark = theme.brightness == Brightness.dark;
 
     if (seanceProv.isLoading) {
@@ -501,14 +531,16 @@ class _DashboardBody extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text('Tableau de bord',
-                    style:
-                        TextStyle(fontWeight: FontWeight.bold, fontSize: 20)),
+                    style: TextStyle(
+                        fontWeight: FontWeight.bold, fontSize: 20),
+                    overflow: TextOverflow.ellipsis),
                 Text(
                   todayCapitalized,
                   style: TextStyle(
                       fontSize: 11,
                       color: cs.onSurface.withValues(alpha: 0.5),
                       fontWeight: FontWeight.normal),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
@@ -519,10 +551,8 @@ class _DashboardBody extends StatelessWidget {
                   radius: 18,
                   backgroundColor: AppColors.sidebarAccent.withValues(alpha: 0.15),
                   child: Text(
-                    auth.professor != null
-                        ? '${auth.professor!.prenom[0]}${auth.professor!.nom[0]}'.toUpperCase()
-                        : 'AS',
-                    style: TextStyle(
+                    initials,
+                    style: const TextStyle(
                         color: AppColors.seed,
                         fontWeight: FontWeight.bold,
                         fontSize: 13),
@@ -576,7 +606,7 @@ class _DashboardBody extends StatelessWidget {
                   const Spacer(),
                   if (todaySeances.isNotEmpty)
                     TextButton(
-                      onPressed: () {},
+                      onPressed: onSeeAll,
                       child: const Text('Voir tout →'),
                     ),
                 ],
@@ -586,7 +616,7 @@ class _DashboardBody extends StatelessWidget {
 
           // ── Session list or empty ──────────────────────────────────────
           if (todaySeances.isEmpty)
-            SliverToBoxAdapter(
+            const SliverToBoxAdapter(
               child: _EmptyState(
                 icon: Icons.event_busy_rounded,
                 text: "Aucune séance aujourd'hui",
@@ -603,8 +633,10 @@ class _DashboardBody extends StatelessWidget {
                       padding: const EdgeInsets.only(bottom: 10),
                       child: SeanceCard(
                         seance: s,
+                        isSubmitted: seanceProv.isSubmitted(s.idSeance),
+                        // Use the outer build() context — guaranteed Navigator ancestor.
                         onTap: () => Navigator.push(
-                          ctx,
+                          context,
                           MaterialPageRoute(
                               builder: (_) => AttendanceScreen(seance: s)),
                         ),

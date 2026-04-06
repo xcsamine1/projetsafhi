@@ -71,16 +71,17 @@ class _StudentAttendanceTileState extends State<StudentAttendanceTile>
     super.dispose();
   }
 
-  Color _avatarColor(String name) {
-    final colors = [
-      const Color(0xFF6C63FF),
-      const Color(0xFF3B82F6),
-      const Color(0xFF10B981),
-      const Color(0xFFF59E0B),
-      const Color(0xFFEF4444),
-      const Color(0xFF8B5CF6),
-      const Color(0xFF14B8A6),
-      const Color(0xFFF97316),
+  // Static so the const color list is not rebuilt on every widget build.
+  static Color _avatarColor(String name) {
+    const colors = [
+      Color(0xFF6C63FF),
+      Color(0xFF3B82F6),
+      Color(0xFF10B981),
+      Color(0xFFF59E0B),
+      Color(0xFFEF4444),
+      Color(0xFF8B5CF6),
+      Color(0xFF14B8A6),
+      Color(0xFFF97316),
     ];
     return colors[name.codeUnitAt(0) % colors.length];
   }
@@ -141,11 +142,11 @@ class _StudentAttendanceTileState extends State<StudentAttendanceTile>
                                 ?.copyWith(fontWeight: FontWeight.w600),
                           ),
                           if (widget.hasExistingRecord)
-                            Row(
+                            const Row(
                               children: [
                                 Icon(Icons.check_circle,
                                     size: 10, color: AppColors.present),
-                                const SizedBox(width: 3),
+                                SizedBox(width: 3),
                                 Text(
                                   'Déjà enregistré',
                                   style: TextStyle(

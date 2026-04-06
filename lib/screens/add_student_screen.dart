@@ -19,7 +19,8 @@ class AddStudentScreen extends StatefulWidget {
 
 class _AddStudentScreenState extends State<AddStudentScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _etudiantService = EtudiantService(ApiService());
+  late final ApiService _apiService;
+  late final EtudiantService _etudiantService;
 
   final _prenomController = TextEditingController();
   final _nomController = TextEditingController();
@@ -27,7 +28,15 @@ class _AddStudentScreenState extends State<AddStudentScreen> {
   bool _isSaving = false;
 
   @override
+  void initState() {
+    super.initState();
+    _apiService = ApiService();
+    _etudiantService = EtudiantService(_apiService);
+  }
+
+  @override
   void dispose() {
+    _apiService.dispose(); // closes the underlying http.Client
     _prenomController.dispose();
     _nomController.dispose();
     super.dispose();

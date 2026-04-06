@@ -104,27 +104,33 @@ class PresenceProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Submit all attendance records (create new or update existing).
+  /// Submit all attendance records in parallel (create new or update existing).
   Future<bool> submitAll({String? token}) async {
     _isSaving = true;
     _error = null;
     notifyListeners();
 
     try {
-      for (final studentId in _presenceMap.keys) {
-        final p = _presenceMap[studentId];
-        if (p == null) continue;
+      // Collect all pending records (skip null / absent-by-default entries)
+      final entries = _presenceMap.entries
+          .where((e) => e.value != null)
+          .toList();
 
-        if (p.idPresence != null) {
-          // Update existing
-          _presenceMap[studentId] =
-              await _presenceService.update(p, token: token);
-        } else {
-          // Create new
-          _presenceMap[studentId] =
-              await _presenceService.create(p, token: token);
-        }
+      // Fire all API calls concurrently
+      final futures = entries.map((e) {
+        final p = e.value!;
+        return p.idPresence != null
+            ? _presenceService.update(p, token: token)
+            : _presenceService.create(p, token: token);
+      });
+
+      final results = await Future.wait(futures);
+
+      // Write results back into the map atomically
+      for (var i = 0; i < entries.length; i++) {
+        _presenceMap[entries[i].key] = results[i];
       }
+
       _submitted = true;
       _isSaving = false;
       notifyListeners();

@@ -15,29 +15,52 @@ class SeanceProvider extends ChangeNotifier {
   int? _profId;
   bool _isLoading = false;
   String? _error;
+  /// Seance IDs whose attendance has been saved in this app session.
+  final Set<int> _submittedSeanceIds = {};
+
+  // ─── Cached derived lists (recomputed lazily when state changes) ──────────
+  List<Seance>? _cachedAll;
+  List<Seance>? _cachedToday;
+  List<Seance>? _cachedFiltered;
 
   // ─── Getters ──────────────────────────────────────────────────────────────
   bool get isLoading => _isLoading;
   String? get error => _error;
   DateTime? get selectedDate => _selectedDate;
 
-  /// Today's sessions for the current professor.
-  List<Seance> get todaySeances => _service.filterSeances(
+  /// Returns true if attendance for [seanceId] has been saved.
+  bool isSubmitted(int seanceId) => _submittedSeanceIds.contains(seanceId);
+
+  /// Mark a seance as having its attendance saved and notify listeners.
+  void markSubmitted(int seanceId) {
+    _submittedSeanceIds.add(seanceId);
+    notifyListeners();
+  }
+
+  /// Full list (prof-filtered only) — cached.
+  List<Seance> get allSeances =>
+      _cachedAll ??= _service.filterSeances(_allSeances, profId: _profId);
+
+  /// Today's sessions for the current professor — cached.
+  List<Seance> get todaySeances => _cachedToday ??= _service.filterSeances(
         _allSeances,
         profId: _profId,
         date: DateTime.now(),
       );
 
-  /// Sessions filtered by the selected date (or all if none selected).
-  List<Seance> get filteredSeances => _service.filterSeances(
+  /// Sessions filtered by the selected date (or all if none selected) — cached.
+  List<Seance> get filteredSeances => _cachedFiltered ??= _service.filterSeances(
         _allSeances,
         profId: _profId,
         date: _selectedDate,
       );
 
-  /// Full list (prof-filtered only).
-  List<Seance> get allSeances =>
-      _service.filterSeances(_allSeances, profId: _profId);
+  // Invalidate cached lists whenever underlying data changes.
+  void _invalidateCache() {
+    _cachedAll = null;
+    _cachedToday = null;
+    _cachedFiltered = null;
+  }
 
   // ─── Actions ──────────────────────────────────────────────────────────────
 
@@ -46,6 +69,8 @@ class SeanceProvider extends ChangeNotifier {
     _profId = profId;
     _isLoading = true;
     _error = null;
+    _submittedSeanceIds.clear();
+    _invalidateCache();
     notifyListeners();
 
     try {
@@ -54,6 +79,7 @@ class SeanceProvider extends ChangeNotifier {
       _error = e.toString();
     } finally {
       _isLoading = false;
+      _invalidateCache();
       notifyListeners();
     }
   }
@@ -61,6 +87,7 @@ class SeanceProvider extends ChangeNotifier {
   /// Set date filter; pass null to clear.
   void setDateFilter(DateTime? date) {
     _selectedDate = date;
+    _invalidateCache();
     notifyListeners();
   }
 
@@ -73,6 +100,7 @@ class SeanceProvider extends ChangeNotifier {
   Future<void> addSeance(Seance seance, {String? token}) async {
     _isLoading = true;
     _error = null;
+    _invalidateCache();
     notifyListeners();
 
     try {
@@ -82,6 +110,7 @@ class SeanceProvider extends ChangeNotifier {
       _error = e.toString();
     } finally {
       _isLoading = false;
+      _invalidateCache();
       notifyListeners();
     }
   }

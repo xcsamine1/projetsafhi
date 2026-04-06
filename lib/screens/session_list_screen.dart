@@ -33,7 +33,10 @@ class _SessionListScreenState extends State<SessionListScreen> {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final seanceProv = context.watch<SeanceProvider>();
-    final auth = context.watch<AuthProvider>();
+    // Read both profId and token in one select to avoid unnecessary rebuilds.
+    final auth = context.select<AuthProvider, ({int profId, String? token})>(
+      (a) => (profId: a.professor?.idProf ?? 1, token: a.token),
+    );
     final isDark = theme.brightness == Brightness.dark;
 
     if (seanceProv.isLoading) {
@@ -42,7 +45,10 @@ class _SessionListScreenState extends State<SessionListScreen> {
     if (seanceProv.error != null) {
       return AppErrorWidget(
         message: seanceProv.error!,
-        onRetry: () => seanceProv.loadSeances(profId: auth.professor?.idProf ?? 1),
+        onRetry: () => seanceProv.loadSeances(
+          profId: auth.profId,
+          token: auth.token,
+        ),
       );
     }
 
@@ -62,6 +68,10 @@ class _SessionListScreenState extends State<SessionListScreen> {
     }
     final sortedDates = grouped.keys.toList()
       ..sort((a, b) => b.compareTo(a)); // most recent first
+
+    // Compute once per build — captured in itemBuilder closure, not re-called per item.
+    final now = DateTime.now();
+    final tomorrow = now.add(const Duration(days: 1));
 
     return Column(
       children: [
@@ -154,12 +164,17 @@ class _SessionListScreenState extends State<SessionListScreen> {
               : ListView.builder(
                   padding: const EdgeInsets.only(bottom: 100),
                   itemCount: sortedDates.length,
+                  // Compute "now" once — captured from outer build() scope.
                   itemBuilder: (ctx, i) {
                     final dateKey = sortedDates[i];
                     final date = DateTime.parse(dateKey);
                     final sessions = grouped[dateKey]!;
-                    final isToday = _isToday(date);
-                    final isTomorrow = _isTomorrow(date);
+                    final isToday = date.year == now.year &&
+                        date.month == now.month &&
+                        date.day == now.day;
+                    final isTomorrow = date.year == tomorrow.year &&
+                        date.month == tomorrow.month &&
+                        date.day == tomorrow.day;
 
                     final dayLabel = isToday
                         ? "Aujourd'hui"
@@ -180,7 +195,7 @@ class _SessionListScreenState extends State<SessionListScreen> {
                           padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
                           child: Row(
                             children: [
-                              Icon(Icons.calendar_today_outlined,
+                              const Icon(Icons.calendar_today_outlined,
                                   size: 14,
                                   color: AppColors.seed),
                               const SizedBox(width: 6),
@@ -203,7 +218,7 @@ class _SessionListScreenState extends State<SessionListScreen> {
                                 ),
                                 child: Text(
                                   '${sessions.length} séance${sessions.length > 1 ? 's' : ''}',
-                                  style: TextStyle(
+                                  style: const TextStyle(
                                       fontSize: 11,
                                       color: AppColors.seed,
                                       fontWeight: FontWeight.w500),
@@ -218,6 +233,7 @@ class _SessionListScreenState extends State<SessionListScreen> {
                                   horizontal: 16, vertical: 4),
                               child: SeanceCard(
                                 seance: s,
+                                isSubmitted: seanceProv.isSubmitted(s.idSeance),
                                 onTap: () => Navigator.push(
                                   ctx,
                                   MaterialPageRoute(
@@ -235,15 +251,4 @@ class _SessionListScreenState extends State<SessionListScreen> {
     );
   }
 
-  bool _isToday(DateTime d) {
-    final now = DateTime.now();
-    return d.year == now.year && d.month == now.month && d.day == now.day;
-  }
-
-  bool _isTomorrow(DateTime d) {
-    final tomorrow = DateTime.now().add(const Duration(days: 1));
-    return d.year == tomorrow.year &&
-        d.month == tomorrow.month &&
-        d.day == tomorrow.day;
-  }
 }

@@ -1,4 +1,4 @@
-/// Shared constants used across the app.
+// Shared constants used across the app.
 
 // ─── Statut Enum ─────────────────────────────────────────────────────────────
 
@@ -78,5 +78,6 @@ class StorageKeys {
   static const String authToken = 'auth_token';
   static const String professorId = 'professor_id';
   static const String professorName = 'professor_name';
+  static const String professorEmail = 'professor_email';
   static const String baseUrl = 'base_url';
 }

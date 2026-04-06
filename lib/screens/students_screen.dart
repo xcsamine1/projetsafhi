@@ -8,7 +8,6 @@ import '../providers/seance_provider.dart';
 import '../services/api_service.dart';
 import '../services/etudiant_service.dart';
 import '../widgets/loading_overlay.dart';
-import 'add_student_screen.dart';
 
 /// Displays all students, filterable by filière, with search and swipe-to-delete.
 class StudentsScreen extends StatefulWidget {
@@ -19,7 +18,8 @@ class StudentsScreen extends StatefulWidget {
 }
 
 class _StudentsScreenState extends State<StudentsScreen> {
-  final _etudiantService = EtudiantService(ApiService());
+  late final ApiService _apiService;
+  late final EtudiantService _etudiantService;
 
   List<Etudiant> _allStudents = [];
   List<Filiere> _filieres = [];
@@ -31,7 +31,15 @@ class _StudentsScreenState extends State<StudentsScreen> {
   @override
   void initState() {
     super.initState();
+    _apiService = ApiService();
+    _etudiantService = EtudiantService(_apiService);
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadData());
+  }
+
+  @override
+  void dispose() {
+    _apiService.dispose(); // closes the underlying http.Client
+    super.dispose();
   }
 
   Future<void> _loadData() async {
@@ -152,10 +160,12 @@ class _StudentsScreenState extends State<StudentsScreen> {
                             onPressed: () => Scaffold.of(context).openDrawer(),
                           ),
                         ),
-                      Text('Étudiants',
-                          style: theme.textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.bold)),
-                      const Spacer(),
+                      Expanded(
+                        child: Text('Étudiants',
+                            style: theme.textTheme.titleLarge?.copyWith(
+                                fontWeight: FontWeight.bold),
+                            overflow: TextOverflow.ellipsis),
+                      ),
                       IconButton(
                           icon: const Icon(Icons.refresh_rounded),
                           tooltip: 'Actualiser',
