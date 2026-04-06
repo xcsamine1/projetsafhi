@@ -239,9 +239,7 @@ class _Sidebar extends StatelessWidget {
         ],
       ),
       child: ClipRect(
-        child: SizedBox(
-          width: 220, // Keep constant width for children to avoid flex layout shifts during animation
-          child: SafeArea(
+        child: SafeArea(
             child: Column(
               children: [
             // ── Logo / Collapse Toggle ──────────────────────────────────────
@@ -258,27 +256,30 @@ class _Sidebar extends StatelessWidget {
                     ),
                     child: const Icon(Icons.school_rounded, color: Colors.white, size: 22),
                   ),
-                  if (!isCollapsed) ...[
-                    const SizedBox(width: 12),
-                    const Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'ESTC 2025',
-                            style: TextStyle(
-                                color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
-                            overflow: TextOverflow.ellipsis,
+                  if (!isCollapsed)
+                    Flexible(
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        physics: const NeverScrollableScrollPhysics(),
+                        child: SizedBox(
+                          width: 150,
+                          child: Row(
+                            children: [
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text('ESTC 2025', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13), overflow: TextOverflow.ellipsis),
+                                    const Text('Présences', style: TextStyle(color: Colors.white54, fontSize: 10), overflow: TextOverflow.ellipsis),
+                                  ],
+                                ),
+                              ),
+                            ],
                           ),
-                          Text(
-                            'Présences',
-                            style: TextStyle(color: Colors.white54, fontSize: 10),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
+                        ),
                       ),
                     ),
-                  ],
                 ],
               ),
             ),
@@ -327,61 +328,52 @@ class _Sidebar extends StatelessWidget {
 
             Divider(color: Colors.white.withValues(alpha: 0.08), height: 1),
 
-            // ── User chip ─────────────────────────────────────────────────
             Padding(
               padding: const EdgeInsets.all(16),
-              child: isCollapsed
-                  ? Tooltip(
-                      message: fullName,
-                      child: CircleAvatar(
-                        radius: 18,
-                        backgroundColor: AppColors.sidebarAccent,
-                        child: Text(initials,
-                            style: const TextStyle(color: Colors.white, fontSize: 10)),
-                      ),
-                    )
-                  : Row(
-                      children: [
-                        CircleAvatar(
-                          radius: 18,
-                          backgroundColor: AppColors.sidebarAccent,
-                          child: Text(
-                            initials,
-                            style: const TextStyle(
-                                color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(fullName,
-                                  style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600),
-                                  overflow: TextOverflow.ellipsis),
-                              Text(email,
-                                  style: const TextStyle(color: Colors.white54, fontSize: 10),
-                                  overflow: TextOverflow.ellipsis),
-                            ],
-                          ),
-                        ),
-                        IconButton(
-                            onPressed: onLogout,
-                            icon: const Icon(Icons.logout_rounded, color: Colors.white54, size: 18),
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints()),
-                      ],
-                    ),
+              child: Row(
+                mainAxisAlignment: isCollapsed ? MainAxisAlignment.center : MainAxisAlignment.start,
+                children: [
+                   Tooltip(
+                     message: fullName,
+                     child: CircleAvatar(
+                       radius: 18,
+                       backgroundColor: AppColors.sidebarAccent,
+                       child: Text(initials, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+                     ),
+                   ),
+                   if (!isCollapsed)
+                     Flexible(
+                       child: SingleChildScrollView(
+                         scrollDirection: Axis.horizontal,
+                         physics: const NeverScrollableScrollPhysics(),
+                         child: SizedBox(
+                           width: 152,
+                           child: Row(
+                             children: [
+                               const SizedBox(width: 10),
+                               Expanded(
+                                 child: Column(
+                                   crossAxisAlignment: CrossAxisAlignment.start,
+                                   children: [
+                                     Text(fullName, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis),
+                                     Text(email, style: const TextStyle(color: Colors.white54, fontSize: 10), overflow: TextOverflow.ellipsis),
+                                   ],
+                                 ),
+                               ),
+                               IconButton(onPressed: onLogout, icon: const Icon(Icons.logout_rounded, color: Colors.white54, size: 18), padding: EdgeInsets.zero, constraints: const BoxConstraints()),
+                             ],
+                           ),
+                         ),
+                       ),
+                     )
+                ],
+              ),
             ),
           ],
         ),
       ),
     ),
-  ),
-);
+  );
   }
 }
 
@@ -418,20 +410,25 @@ class _NavItem extends StatelessWidget {
                 mainAxisAlignment: isCollapsed ? MainAxisAlignment.center : MainAxisAlignment.start,
                 children: [
                   Icon(icon, color: selected ? Colors.white : Colors.white54, size: 20),
-                  if (!isCollapsed) ...[
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        label,
-                        style: TextStyle(
-                            color: selected ? Colors.white : Colors.white60,
-                            fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
-                            fontSize: 13),
-                        overflow: TextOverflow.ellipsis,
+                  if (!isCollapsed)
+                    Flexible(
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        physics: const NeverScrollableScrollPhysics(),
+                        child: SizedBox(
+                          width: 152,
+                          child: Row(
+                            children: [
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(label, style: TextStyle(color: selected ? Colors.white : Colors.white60, fontWeight: selected ? FontWeight.w600 : FontWeight.normal, fontSize: 13), overflow: TextOverflow.ellipsis),
+                              ),
+                              if (selected) const Icon(Icons.chevron_right, color: Colors.white54, size: 16),
+                            ],
+                          ),
+                        ),
                       ),
                     ),
-                    if (selected) const Icon(Icons.chevron_right, color: Colors.white54, size: 16),
-                  ]
                 ],
               ),
             ),
@@ -467,16 +464,24 @@ class _SidebarAction extends StatelessWidget {
             mainAxisAlignment: isCollapsed ? MainAxisAlignment.center : MainAxisAlignment.start,
             children: [
               Icon(icon, color: Colors.white54, size: 18),
-              if (!isCollapsed) ...[
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    label,
-                    style: const TextStyle(color: Colors.white54, fontSize: 12),
-                    overflow: TextOverflow.ellipsis,
+              if (!isCollapsed)
+                Flexible(
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    physics: const NeverScrollableScrollPhysics(),
+                    child: SizedBox(
+                      width: 154,
+                      child: Row(
+                        children: [
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(label, style: const TextStyle(color: Colors.white54, fontSize: 12), overflow: TextOverflow.ellipsis),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
-              ],
             ],
           ),
         ),
