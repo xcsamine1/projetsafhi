@@ -75,4 +75,32 @@ router.post('/', async (req, res) => {
     }
 });
 
+/**
+ * DELETE /api/etudiants/:id
+ * Deletes a student. Fails if the student has presence records.
+ */
+router.delete('/:id', async (req, res) => {
+    const { id } = req.params;
+    try {
+        // Check for linked presence records
+        const [presence] = await db.execute(
+            'SELECT COUNT(*) as count FROM Presence WHERE id_etudiant = ?', [id]
+        );
+        if (presence[0].count > 0) {
+            return res.status(409).json({
+                message: 'Impossible de supprimer : cet étudiant a des enregistrements de présence.'
+            });
+        }
+
+        const [result] = await db.execute('DELETE FROM Etudiant WHERE id_etudiant = ?', [id]);
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ message: 'Étudiant introuvable.' });
+        }
+        return res.json({ message: 'Étudiant supprimé avec succès.' });
+    } catch (err) {
+        console.error('DELETE /etudiants/:id error:', err);
+        return res.status(500).json({ message: 'Erreur serveur.' });
+    }
+});
+
 module.exports = router;

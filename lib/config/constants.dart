@@ -62,7 +62,9 @@ class ApiEndpoints {
   static String etudiantsByFiliere(int filiereId) =>
       '/etudiants/byFiliere/$filiereId';
   static const String etudiants = '/etudiants';
+  static String etudiantById(int id) => '/etudiants/$id';
   static const String filieres = '/filieres';
+  static String filiereById(int id) => '/filieres/$id';
   static String presenceBySeance(int seanceId) => '/presence/$seanceId';
   static const String presence = '/presence';
   static String presenceById(int id) => '/presence/$id';

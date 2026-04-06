@@ -59,6 +59,14 @@ class ApiService {
     return _handleResponse(response);
   }
 
+  /// Perform a DELETE request.
+  Future<dynamic> delete(String path, {String? token}) async {
+    final response = await _client
+        .delete(_uri(path), headers: _headers(token: token))
+        .timeout(const Duration(seconds: 15));
+    return _handleResponse(response);
+  }
+
   // ─── Response Handling ──────────────────────────────────────────────────
 
   dynamic _handleResponse(http.Response response) {

@@ -61,5 +61,16 @@ class EtudiantService {
       token: token,
     );
   }
+  /// Delete a student by id.
+  Future<void> deleteEtudiant(int id, {String? token}) async {
+    if (AppConfig.useDummyData) return;
+    await _api.delete(ApiEndpoints.etudiantById(id), token: token);
+  }
+
+  /// Delete a filière by id.
+  Future<void> deleteFiliere(int id, {String? token}) async {
+    if (AppConfig.useDummyData) return;
+    await _api.delete(ApiEndpoints.filiereById(id), token: token);
+  }
 }
 
