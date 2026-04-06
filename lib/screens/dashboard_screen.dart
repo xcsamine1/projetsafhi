@@ -12,6 +12,7 @@ import 'session_list_screen.dart';
 import 'create_seance_screen.dart';
 import 'admin_data_screen.dart';
 import 'login_screen.dart';
+import 'students_screen.dart';
 
 /// Main shell with side navigation rail matching the ESTC 2025 dashboard design.
 class DashboardScreen extends StatefulWidget {
@@ -41,9 +42,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
         );
   }
 
-  final _labels = ['Tableau de bord', 'Séances'];
-  final _icons = [Icons.dashboard_outlined, Icons.calendar_month_outlined];
-  final _selectedIcons = [Icons.dashboard_rounded, Icons.calendar_month_rounded];
+  final _labels = ['Tableau de bord', 'Séances', 'Étudiants'];
+  final _icons = [Icons.dashboard_outlined, Icons.calendar_month_outlined, Icons.people_outline_rounded];
+  final _selectedIcons = [Icons.dashboard_rounded, Icons.calendar_month_rounded, Icons.people_rounded];
 
   @override
   Widget build(BuildContext context) {
@@ -109,6 +110,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     children: [
                       _DashboardBody(onRefresh: _loadData),
                       const SessionListScreen(),
+                      const StudentsScreen(),
                     ],
                   ),
                 ),
@@ -119,6 +121,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               children: [
                 _DashboardBody(onRefresh: _loadData),
                 const SessionListScreen(),
+                const StudentsScreen(),
               ],
             ),
       // FAB for creating new session

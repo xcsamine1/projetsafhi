@@ -1,0 +1,456 @@
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../config/theme.dart';
+import '../models/etudiant.dart';
+import '../models/metadata.dart';
+import '../providers/auth_provider.dart';
+import '../providers/seance_provider.dart';
+import '../services/api_service.dart';
+import '../services/etudiant_service.dart';
+import '../widgets/loading_overlay.dart';
+import 'add_student_screen.dart';
+
+/// Displays all students, filterable by filière, with search.
+class StudentsScreen extends StatefulWidget {
+  const StudentsScreen({super.key});
+
+  @override
+  State<StudentsScreen> createState() => _StudentsScreenState();
+}
+
+class _StudentsScreenState extends State<StudentsScreen> {
+  final _etudiantService = EtudiantService(ApiService());
+
+  List<Etudiant> _allStudents = [];
+  List<Filiere> _filieres = [];
+  bool _isLoading = true;
+  String? _error;
+  int? _selectedFiliere; // null = all
+  String _searchQuery = '';
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadData());
+  }
+
+  Future<void> _loadData() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    final token = context.read<AuthProvider>().token;
+    final seanceProv = context.read<SeanceProvider>();
+
+    try {
+      // Load filieres from metadata (already cached by seance provider)
+      final meta = await seanceProv.fetchMetadata(token: token);
+      _filieres = meta?.filieres ?? [];
+
+      // Load all students
+      final data = await _etudiantService.getAll(token: token);
+
+      if (mounted) {
+        setState(() {
+          _allStudents = data;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = e.toString();
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  List<Etudiant> get _filtered {
+    return _allStudents.where((e) {
+      final matchFiliere =
+          _selectedFiliere == null || e.idFiliere == _selectedFiliere;
+      final q = _searchQuery.toLowerCase();
+      final matchSearch = q.isEmpty ||
+          e.nom.toLowerCase().contains(q) ||
+          e.prenom.toLowerCase().contains(q);
+      return matchFiliere && matchSearch;
+    }).toList();
+  }
+
+  String _filiereName(int id) {
+    return _filieres
+        .firstWhere((f) => f.idFiliere == id,
+            orElse: () => Filiere(idFiliere: id, nomFiliere: 'Filière $id'))
+        .nomFiliere;
+  }
+
+  Color _filiereColor(int id) {
+    const colors = [
+      AppColors.infoBlue,
+      AppColors.geiiPurple,
+      AppColors.dataTeal,
+      AppColors.sidebarAccent,
+    ];
+    return colors[id % colors.length];
+  }
+
+  Widget _buildAvatar(Etudiant e) {
+    final initials =
+        '${e.prenom.isNotEmpty ? e.prenom[0] : ''}${e.nom.isNotEmpty ? e.nom[0] : ''}'
+            .toUpperCase();
+    final color = _filiereColor(e.idFiliere);
+    return CircleAvatar(
+      radius: 22,
+      backgroundColor: color.withValues(alpha: 0.15),
+      child: Text(
+        initials,
+        style: TextStyle(
+          color: color,
+          fontWeight: FontWeight.bold,
+          fontSize: 14,
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Étudiants'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh_rounded),
+            tooltip: 'Actualiser',
+            onPressed: _loadData,
+          ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () async {
+          final added = await Navigator.push<bool>(
+            context,
+            MaterialPageRoute(
+              builder: (_) => AddStudentScreen(filieres: _filieres),
+            ),
+          );
+          if (added == true) _loadData();
+        },
+        backgroundColor: AppColors.seed,
+        foregroundColor: Colors.white,
+        icon: const Icon(Icons.person_add_rounded),
+        label: const Text('Ajouter'),
+      ),
+      body: Stack(
+        children: [
+          Column(
+            children: [
+              // ── Search + Filter bar ───────────────────────────────────────
+              Container(
+                color: isDark ? cs.surfaceContainer : Colors.white,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: Column(
+                  children: [
+                    // Search field
+                    TextField(
+                      decoration: InputDecoration(
+                        hintText: 'Rechercher un étudiant...',
+                        prefixIcon: const Icon(Icons.search_rounded, size: 20),
+                        suffixIcon: _searchQuery.isNotEmpty
+                            ? IconButton(
+                                icon: const Icon(Icons.clear, size: 18),
+                                onPressed: () =>
+                                    setState(() => _searchQuery = ''),
+                              )
+                            : null,
+                      ),
+                      onChanged: (v) => setState(() => _searchQuery = v),
+                    ),
+                    const SizedBox(height: 10),
+                    // Filière chips
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          _FiliereChip(
+                            label: 'Tous',
+                            selected: _selectedFiliere == null,
+                            color: AppColors.seed,
+                            onTap: () =>
+                                setState(() => _selectedFiliere = null),
+                          ),
+                          ..._filieres.map((f) => _FiliereChip(
+                                label: f.nomFiliere,
+                                selected: _selectedFiliere == f.idFiliere,
+                                color: _filiereColor(f.idFiliere),
+                                onTap: () => setState(
+                                    () => _selectedFiliere = f.idFiliere),
+                              )),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              Divider(
+                  height: 1,
+                  color: isDark ? Colors.white12 : const Color(0xFFE2E8F0)),
+
+              // ── Student list ─────────────────────────────────────────────
+              Expanded(
+                child: _isLoading
+                    ? const LoadingOverlay(message: 'Chargement...')
+                    : _error != null
+                        ? _ErrorView(error: _error!, onRetry: _loadData)
+                        : _filtered.isEmpty
+                            ? _EmptyView(
+                                query: _searchQuery,
+                                hasFilter: _selectedFiliere != null,
+                              )
+                            : RefreshIndicator(
+                                onRefresh: _loadData,
+                                child: ListView.separated(
+                                  padding: const EdgeInsets.fromLTRB(
+                                      16, 12, 16, 100),
+                                  itemCount: _filtered.length,
+                                  separatorBuilder: (_, __) =>
+                                      const SizedBox(height: 8),
+                                  itemBuilder: (context, i) {
+                                    final e = _filtered[i];
+                                    final color =
+                                        _filiereColor(e.idFiliere);
+                                    return _StudentCard(
+                                      etudiant: e,
+                                      filiereName:
+                                          _filiereName(e.idFiliere),
+                                      filiereColor: color,
+                                      avatar: _buildAvatar(e),
+                                      isDark: isDark,
+                                    );
+                                  },
+                                ),
+                              ),
+              ),
+
+              // ── Count badge ──────────────────────────────────────────────
+              if (!_isLoading && _error == null)
+                Container(
+                  width: double.infinity,
+                  color: isDark ? cs.surfaceContainer : Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 20, vertical: 8),
+                  child: Text(
+                    '${_filtered.length} étudiant${_filtered.length != 1 ? 's' : ''}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: cs.onSurface.withValues(alpha: 0.5),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Filière Filter Chip ──────────────────────────────────────────────────────
+
+class _FiliereChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _FiliereChip({
+    required this.label,
+    required this.selected,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        child: FilterChip(
+          label: Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight:
+                  selected ? FontWeight.w600 : FontWeight.normal,
+              color: selected ? Colors.white : color,
+            ),
+          ),
+          selected: selected,
+          onSelected: (_) => onTap(),
+          backgroundColor: color.withValues(alpha: 0.08),
+          selectedColor: color,
+          checkmarkColor: Colors.white,
+          showCheckmark: selected,
+          side: BorderSide(
+              color: selected ? color : color.withValues(alpha: 0.3)),
+          padding:
+              const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Student Card ─────────────────────────────────────────────────────────────
+
+class _StudentCard extends StatelessWidget {
+  final Etudiant etudiant;
+  final String filiereName;
+  final Color filiereColor;
+  final Widget avatar;
+  final bool isDark;
+
+  const _StudentCard({
+    required this.etudiant,
+    required this.filiereName,
+    required this.filiereColor,
+    required this.avatar,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E293B) : Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.08)
+              : const Color(0xFFE2E8F0),
+        ),
+      ),
+      child: ListTile(
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+        leading: avatar,
+        title: Text(
+          '${etudiant.prenom} ${etudiant.nom}',
+          style: const TextStyle(
+              fontWeight: FontWeight.w600, fontSize: 14),
+        ),
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 4),
+          child: Row(
+            children: [
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: filiereColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  filiereName,
+                  style: TextStyle(
+                      fontSize: 11,
+                      color: filiereColor,
+                      fontWeight: FontWeight.w500),
+                ),
+              ),
+            ],
+          ),
+        ),
+        trailing: Text(
+          '#${etudiant.idEtudiant}',
+          style: TextStyle(
+              fontSize: 11,
+              color: Theme.of(context)
+                  .colorScheme
+                  .onSurface
+                  .withValues(alpha: 0.35)),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Empty State ──────────────────────────────────────────────────────────────
+
+class _EmptyView extends StatelessWidget {
+  final String query;
+  final bool hasFilter;
+
+  const _EmptyView({required this.query, required this.hasFilter});
+
+  @override
+  Widget build(BuildContext context) {
+    final color =
+        Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.35);
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.people_outline_rounded, size: 72, color: color),
+            const SizedBox(height: 16),
+            Text(
+              query.isNotEmpty
+                  ? 'Aucun résultat pour "$query"'
+                  : hasFilter
+                      ? 'Aucun étudiant dans cette filière'
+                      : 'Aucun étudiant enregistré',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: color, fontSize: 14),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Error View ───────────────────────────────────────────────────────────────
+
+class _ErrorView extends StatelessWidget {
+  final String error;
+  final VoidCallback onRetry;
+
+  const _ErrorView({required this.error, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.error_outline_rounded,
+                size: 64, color: Color(0xFFEF4444)),
+            const SizedBox(height: 16),
+            Text(error,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 13)),
+            const SizedBox(height: 20),
+            ElevatedButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Réessayer'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

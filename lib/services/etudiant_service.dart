@@ -10,6 +10,19 @@ class EtudiantService {
 
   EtudiantService(this._api);
 
+  /// Fetch ALL students (across all filières).
+  Future<List<Etudiant>> getAll({String? token}) async {
+    if (AppConfig.useDummyData) {
+      await Future.delayed(const Duration(milliseconds: 500));
+      return List<Etudiant>.from(DummyData.etudiants);
+    }
+
+    final data = await _api.get(ApiEndpoints.etudiants, token: token);
+    return (data as List)
+        .map((e) => Etudiant.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
   /// Fetch all students in a given filière.
   Future<List<Etudiant>> getByFiliere(int filiereId, {String? token}) async {
     if (AppConfig.useDummyData) {
